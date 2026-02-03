@@ -7,6 +7,12 @@ export interface PlaylistItem {
   title: string;
 }
 
+export interface WorkLogEntry {
+  id: string;
+  startedAt: string;
+  durationMinutes: number;
+}
+
 interface AppState {
   // Timer Settings
   workDuration: number; // minutes
@@ -30,17 +36,27 @@ interface AppState {
   // Settings
   pushEnabled: boolean;
 
+  // Stats
+  workLog: WorkLogEntry[];
+
   // Actions
   setWorkDuration: (minutes: number) => void;
   setBreakDuration: (minutes: number) => void;
+  setLongBreakDuration: (minutes: number) => void;
+  setSessionsBeforeLongBreak: (sessions: number) => void;
   setTimerState: (state: "idle" | "work" | "break" | "long-break") => void;
   setTimeLeft: (seconds: number) => void;
   setIsActive: (active: boolean) => void;
-  addToPlaylist: (url: string) => void;
+  setCurrSession: (session: number) => void;
+  incrementSession: () => void;
+  addWorkLog: (durationMinutes: number, startedAt?: string) => void;
+  addToPlaylist: (url: string, title?: string) => void;
   removeFromPlaylist: (id: string) => void;
   playMusic: () => void;
   pauseMusic: () => void;
   nextTrack: () => void;
+  setCurrentTrackIndex: (index: number) => void;
+  setMusicMode: (mode: "playlist" | "single" | "sequence") => void;
   setVolume: (vol: number) => void;
   togglePush: () => void;
 }
@@ -66,35 +82,90 @@ export const useAppStore = create<AppState>()(
 
       pushEnabled: false,
 
+      workLog: [],
+
       setWorkDuration: (minutes) => set({ workDuration: minutes }),
       setBreakDuration: (minutes) => set({ breakDuration: minutes }),
+      setLongBreakDuration: (minutes) => set({ longBreakDuration: minutes }),
+      setSessionsBeforeLongBreak: (sessions) =>
+        set({ sessionsBeforeLongBreak: sessions }),
       setTimerState: (state) => set({ timerState: state }),
       setTimeLeft: (seconds) => set({ timeLeft: seconds }),
       setIsActive: (active) => set({ isActive: active }),
+      setCurrSession: (session) => set({ currSession: session }),
+      incrementSession: () =>
+        set((state) => ({ currSession: state.currSession + 1 })),
+      addWorkLog: (durationMinutes, startedAt) =>
+        set((state) => ({
+          workLog: [
+            ...state.workLog,
+            {
+              id: crypto.randomUUID(),
+              startedAt: startedAt ?? new Date().toISOString(),
+              durationMinutes,
+            },
+          ],
+        })),
 
-      addToPlaylist: (url) =>
+      addToPlaylist: (url, title) =>
         set((state) => ({
           playlist: [
             ...state.playlist,
             {
               id: crypto.randomUUID(),
               url,
-              title: `Track ${state.playlist.length + 1}`,
+              title: title?.trim() || `Track ${state.playlist.length + 1}`,
             },
           ],
         })),
       removeFromPlaylist: (id) =>
-        set((state) => ({
-          playlist: state.playlist.filter((p) => p.id !== id),
-        })),
+        set((state) => {
+          const removeIndex = state.playlist.findIndex((p) => p.id === id);
+          const nextPlaylist = state.playlist.filter((p) => p.id !== id);
+          let nextIndex = state.currentTrackIndex;
+
+          if (removeIndex !== -1) {
+            if (removeIndex < state.currentTrackIndex) {
+              nextIndex -= 1;
+            } else if (
+              removeIndex === state.currentTrackIndex &&
+              nextIndex >= nextPlaylist.length
+            ) {
+              nextIndex = Math.max(0, nextPlaylist.length - 1);
+            }
+          }
+
+          return {
+            playlist: nextPlaylist,
+            currentTrackIndex: Math.max(0, nextIndex),
+          };
+        }),
 
       playMusic: () => set({ isMusicPlaying: true }),
       pauseMusic: () => set({ isMusicPlaying: false }),
       nextTrack: () =>
         set((state) => ({
-          currentTrackIndex:
-            (state.currentTrackIndex + 1) % state.playlist.length,
+          ...(state.playlist.length === 0
+            ? {}
+            : state.musicMode === "single"
+              ? { currentTrackIndex: state.currentTrackIndex }
+              : state.musicMode === "sequence"
+                ? state.currentTrackIndex + 1 < state.playlist.length
+                  ? { currentTrackIndex: state.currentTrackIndex + 1 }
+                  : { isMusicPlaying: false }
+                : {
+                    currentTrackIndex:
+                      (state.currentTrackIndex + 1) % state.playlist.length,
+                  }),
         })),
+      setCurrentTrackIndex: (index) =>
+        set((state) => ({
+          currentTrackIndex: Math.max(
+            0,
+            Math.min(index, state.playlist.length - 1),
+          ),
+        })),
+      setMusicMode: (mode) => set({ musicMode: mode }),
       setVolume: (vol) => set({ volume: vol }),
       togglePush: () => set((state) => ({ pushEnabled: !state.pushEnabled })),
     }),

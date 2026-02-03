@@ -4,8 +4,8 @@ import { useMemo } from "react";
 import { SidebarProvider } from "@/src/components/ui/sidebar";
 import AppSidebar from "./app-sidebar"; // Import locally as it is in the same folder now
 import { useUIStore } from "@/src/store/ui-store";
-import { LoadingWithImage } from "../ui/custom/loading-with-image";
 import { navigationConfig } from "@/src/config/navigation";
+import { MusicFloatingControl } from "./music-floating-control";
 
 // Placeholder for LoadingWithImage if it doesn't exist or needs cleanup
 // Ensuring we have a fallback or valid import.
@@ -36,6 +36,7 @@ export function Shell({ children }: ShellProps) {
       <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 w-full h-screen overflow-hidden">
         {children}
       </main>
+      <MusicFloatingControl />
     </SidebarProvider>
   );
 }

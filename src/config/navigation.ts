@@ -11,7 +11,7 @@ export type NavItem = {
 
 export const navigationConfig: NavItem[] = [
   {
-    title: "לוח ראשי",
+    title: "לוח עבודה",
     href: "/",
     icon: LayoutDashboard,
   },
