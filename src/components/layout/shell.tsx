@@ -6,6 +6,7 @@ import AppSidebar from "./app-sidebar"; // Import locally as it is in the same f
 import { useUIStore } from "@/src/store/ui-store";
 import { navigationConfig } from "@/src/config/navigation";
 import { MusicFloatingControl } from "./music-floating-control";
+import { GlobalMusicPlayer } from "./global-music-player";
 
 // Placeholder for LoadingWithImage if it doesn't exist or needs cleanup
 // Ensuring we have a fallback or valid import.
@@ -37,6 +38,7 @@ export function Shell({ children }: ShellProps) {
         {children}
       </main>
       <MusicFloatingControl />
+      <GlobalMusicPlayer />
     </SidebarProvider>
   );
 }

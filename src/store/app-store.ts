@@ -5,6 +5,7 @@ export interface PlaylistItem {
   id: string;
   url: string;
   title: string;
+  isAutoTitle?: boolean;
 }
 
 export interface WorkLogEntry {
@@ -32,6 +33,9 @@ interface AppState {
   isMusicPlaying: boolean;
   musicMode: "playlist" | "single" | "sequence";
   volume: number;
+  currentTrackProgress: number; // seconds
+  currentTrackDuration: number; // seconds
+  seekRequest: number | null; // Timestamp to seek to. Null if no pending seek.
 
   // Settings
   pushEnabled: boolean;
@@ -51,9 +55,13 @@ interface AppState {
   incrementSession: () => void;
   addWorkLog: (durationMinutes: number, startedAt?: string) => void;
   addToPlaylist: (url: string, title?: string) => void;
+  updateTrackTitle: (id: string, title: string) => void; // Added
   removeFromPlaylist: (id: string) => void;
   playMusic: () => void;
   pauseMusic: () => void;
+  setProgress: (progress: number, duration: number) => void;
+  seekTo: (seconds: number) => void;
+  clearSeekRequest: () => void;
   nextTrack: () => void;
   setCurrentTrackIndex: (index: number) => void;
   setMusicMode: (mode: "playlist" | "single" | "sequence") => void;
@@ -76,6 +84,9 @@ export const useAppStore = create<AppState>()(
 
       playlist: [],
       currentTrackIndex: 0,
+      currentTrackProgress: 0,
+      currentTrackDuration: 0,
+      seekRequest: null,
       isMusicPlaying: false,
       musicMode: "playlist",
       volume: 0.5,
@@ -115,8 +126,15 @@ export const useAppStore = create<AppState>()(
               id: crypto.randomUUID(),
               url,
               title: title?.trim() || `Track ${state.playlist.length + 1}`,
+              isAutoTitle: !title?.trim(), // Mark if it was auto-generated or empty
             },
           ],
+        })),
+      updateTrackTitle: (id, title) =>
+        set((state) => ({
+          playlist: state.playlist.map((track) =>
+            track.id === id ? { ...track, title, isAutoTitle: false } : track,
+          ),
         })),
       removeFromPlaylist: (id) =>
         set((state) => {
@@ -140,6 +158,10 @@ export const useAppStore = create<AppState>()(
             currentTrackIndex: Math.max(0, nextIndex),
           };
         }),
+      setProgress: (progress, duration) =>
+        set({ currentTrackProgress: progress, currentTrackDuration: duration }),
+      seekTo: (seconds) => set({ seekRequest: seconds }),
+      clearSeekRequest: () => set({ seekRequest: null }),
 
       playMusic: () => set({ isMusicPlaying: true }),
       pauseMusic: () => set({ isMusicPlaying: false }),
