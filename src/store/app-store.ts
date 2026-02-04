@@ -52,8 +52,9 @@ interface AppState {
   currentTrackDuration: number; // seconds
   seekRequest: number | null;
 
-  // Widget Position
+  // Widget Position & State
   musicWidgetPosition: { x: number; y: number };
+  isMusicWidgetMinimized: boolean;
 
   // Settings
   pushEnabled: boolean;
@@ -92,6 +93,7 @@ interface AppState {
   setVolume: (vol: number) => void;
   setCurrentTrackIndex: (index: number) => void;
   setMusicWidgetPosition: (pos: { x: number; y: number }) => void;
+  setMusicWidgetMinimized: (minimized: boolean) => void;
   togglePush: () => void;
 }
 
@@ -132,6 +134,7 @@ export const useAppStore = create<AppState>()(
       volume: 0.5,
 
       musicWidgetPosition: { x: 0, y: 0 },
+      isMusicWidgetMinimized: false,
 
       pushEnabled: false,
 
@@ -374,6 +377,8 @@ export const useAppStore = create<AppState>()(
         }),
 
       setMusicWidgetPosition: (pos) => set({ musicWidgetPosition: pos }),
+      setMusicWidgetMinimized: (minimized) =>
+        set({ isMusicWidgetMinimized: minimized }),
 
       setVolume: (vol) => set({ volume: vol }),
 
