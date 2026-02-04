@@ -1,116 +1,54 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import ReactPlayer from "react-player";
 import { useAppStore } from "@/src/store/app-store";
-import { getYoutubeTitle } from "@/src/app/actions/get-youtube-title";
+import { useEffect, useState } from "react";
 
 export function GlobalMusicPlayer() {
-  const {
-    playlist,
-    currentTrackIndex,
-    isMusicPlaying,
-    volume,
-    nextTrack,
-    updateTrackTitle,
-    musicMode,
-    seekRequest,
-    clearSeekRequest,
-    setProgress,
-  } = useAppStore();
-
-  const [mounted, setMounted] = useState(false);
-  const playerRef = useRef<any>(null); // Ref for calling seek methods
+  const { playlist, currentTrackIndex, isMusicPlaying, nextTrack } =
+    useAppStore();
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    setIsMounted(true);
   }, []);
+
+  if (!isMounted || !playlist[currentTrackIndex]) return null;
 
   const currentTrack = playlist[currentTrackIndex];
 
-  // Title fetching logic
-  useEffect(() => {
-    if (!currentTrack) return;
+  // חילוץ ה-ID מה-URL (פשוט ובסיסי)
+  const videoId = currentTrack.url.includes("v=")
+    ? currentTrack.url.split("v=")[1]?.split("&")[0]
+    : currentTrack.url.split("/").pop();
 
-    // If we have a URL but title is default/auto, try to fetch real title
-    if (currentTrack.isAutoTitle && currentTrack.url) {
-      getYoutubeTitle(currentTrack.url).then((fetchedTitle) => {
-        if (fetchedTitle) {
-          updateTrackTitle(currentTrack.id, fetchedTitle);
-        }
-      });
-    }
-  }, [currentTrack?.id, currentTrack?.url, currentTrack?.isAutoTitle]);
-
-  // Handle seekingSAFE
-  useEffect(() => {
-    if (
-      seekRequest !== null &&
-      playerRef.current &&
-      typeof playerRef.current.seekTo === "function"
-    ) {
-      playerRef.current.seekTo(seekRequest);
-      clearSeekRequest();
-    }
-  }, [seekRequest, clearSeekRequest]);
-
-  if (!mounted || !currentTrack) return null;
-
-  // Determine looping behavior
-  const shouldLoop =
-    musicMode === "single" ||
-    (musicMode === "playlist" && playlist.length === 1);
+  // בניית ה-URL ל-Embed עם הפרמטרים של יוטיוב
+  // autoplay=1 ינסה לנגן, אבל הדפדפן עשוי לחסום עד שתלחץ
+  const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=${isMusicPlaying ? 1 : 0}&enablejsapi=1`;
 
   return (
     <div
       style={{
         position: "fixed",
-        top: 0,
-        left: 0,
-        opacity: 0.01,
-        pointerEvents: "none",
-        zIndex: -1,
-        width: "1px",
-        height: "1px",
+        bottom: "20px",
+        right: "20px",
+        zIndex: 9999,
+        width: "300px",
+        height: "170px",
+        background: "#000",
+        borderRadius: "12px",
         overflow: "hidden",
+        border: "2px solid #3b82f6", // מסגרת כחולה בולטת שתדע שזה זה
       }}
     >
-      <ReactPlayer
-        ref={playerRef}
-        key={currentTrack.id}
-        url={currentTrack.url}
-        playing={isMusicPlaying}
-        volume={volume}
-        loop={shouldLoop}
-        onEnded={nextTrack}
-        onProgress={(state: any) =>
-          setProgress(
-            state.playedSeconds,
-            playerRef.current?.getDuration
-              ? playerRef.current.getDuration() || 0
-              : 0,
-          )
-        }
-        onReady={() => {
-          if (playerRef.current?.getDuration) {
-            setProgress(0, playerRef.current.getDuration());
-          }
-        }}
+      <iframe
         width="100%"
         height="100%"
-        playsinline
-        config={{
-          youtube: {
-            playerVars: {
-              origin:
-                typeof window !== "undefined"
-                  ? window.location.origin
-                  : undefined,
-              playsinline: 1,
-            },
-          } as any,
-        }}
-      />
+        src={embedUrl}
+        title="YouTube music player"
+        frameBorder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowFullScreen
+      ></iframe>
     </div>
   );
 }
