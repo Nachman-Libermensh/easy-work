@@ -2,6 +2,18 @@ import { create } from "zustand";
 import { persist, createJSONStorage, StateStorage } from "zustand/middleware";
 import { get, set, del } from "idb-keyval";
 
+export interface BreakSession {
+  start: string;
+  end?: string;
+}
+
+export interface Shift {
+  id: string;
+  start: string;
+  end?: string;
+  breaks: BreakSession[];
+}
+
 export interface PlaylistItem {
   id: string;
   url: string;
@@ -9,6 +21,7 @@ export interface PlaylistItem {
   isAutoTitle?: boolean;
 }
 
+// Keeping this for legacy support if needed, but we move to Shift
 export interface WorkLogEntry {
   id: string;
   startedAt: string;
@@ -16,27 +29,27 @@ export interface WorkLogEntry {
 }
 
 interface AppState {
-  // Timer Settings
-  workDuration: number; // minutes
-  breakDuration: number; // minutes
-  longBreakDuration: number; // minutes
-  sessionsBeforeLongBreak: number;
+  // Work State
+  workStatus: "idle" | "working" | "break";
+  currentShift: Shift | null;
+  shiftHistory: Shift[];
+  lastStateChange: string | null;
 
-  // Timer State
-  timerState: "idle" | "work" | "break" | "long-break";
-  timeLeft: number; // seconds
-  isActive: boolean;
-  currSession: number;
+  // Work Preferences (Goals)
+  workCycleDuration: number;
+  shortBreakDuration: number;
+  longBreakDuration: number;
+  sessionsBeforeLongBreak: number;
 
   // Music
   playlist: PlaylistItem[];
   currentTrackIndex: number;
   isMusicPlaying: boolean;
-  musicMode: "playlist" | "single" | "sequence";
+  musicMode: "playlist" | "single" | "loop-playlist"; // Changed 'sequence' to 'loop-playlist' for clarity
   volume: number;
   currentTrackProgress: number; // seconds
   currentTrackDuration: number; // seconds
-  seekRequest: number | null; // Timestamp to seek to. Null if no pending seek.
+  seekRequest: number | null;
 
   // Settings
   pushEnabled: boolean;
@@ -45,28 +58,35 @@ interface AppState {
   workLog: WorkLogEntry[];
 
   // Actions
-  setWorkDuration: (minutes: number) => void;
-  setBreakDuration: (minutes: number) => void;
+  setWorkStatus: (status: "idle" | "working" | "break") => void;
+  startWork: () => void;
+  startBreak: () => void;
+  stopWork: () => void;
+
+  // Settings Actions
+  setWorkCycleDuration: (minutes: number) => void;
+  setShortBreakDuration: (minutes: number) => void;
   setLongBreakDuration: (minutes: number) => void;
   setSessionsBeforeLongBreak: (sessions: number) => void;
-  setTimerState: (state: "idle" | "work" | "break" | "long-break") => void;
-  setTimeLeft: (seconds: number) => void;
-  setIsActive: (active: boolean) => void;
-  setCurrSession: (session: number) => void;
-  incrementSession: () => void;
+
   addWorkLog: (durationMinutes: number, startedAt?: string) => void;
-  addToPlaylist: (url: string, title?: string) => void;
-  updateTrackTitle: (id: string, title: string) => void; // Added
+  addToPlaylist: (url: string, title?: string) => Promise<void>; // Make async to fetch title
+  updateTrackTitle: (id: string, title: string) => void;
   removeFromPlaylist: (id: string) => void;
+
+  // Music Controls
   playMusic: () => void;
   pauseMusic: () => void;
+  toggleMusic: () => void;
+  nextTrack: () => void;
+  previousTrack: () => void;
+  setMusicMode: (mode: "playlist" | "single" | "loop-playlist") => void;
+  cycleMusicMode: () => void;
   setProgress: (progress: number, duration: number) => void;
   seekTo: (seconds: number) => void;
   clearSeekRequest: () => void;
-  nextTrack: () => void;
-  setCurrentTrackIndex: (index: number) => void;
-  setMusicMode: (mode: "playlist" | "single" | "sequence") => void;
   setVolume: (vol: number) => void;
+  setCurrentTrackIndex: (index: number) => void;
   togglePush: () => void;
 }
 
@@ -86,15 +106,16 @@ const storage: StateStorage = {
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
-      workDuration: 25,
-      breakDuration: 5,
-      longBreakDuration: 15,
-      sessionsBeforeLongBreak: 4,
+      // Defaults
+      workStatus: "idle",
+      currentShift: null,
+      shiftHistory: [],
+      lastStateChange: null,
 
-      timerState: "idle",
-      timeLeft: 25 * 60,
-      isActive: false,
-      currSession: 0,
+      workCycleDuration: 60,
+      shortBreakDuration: 5,
+      longBreakDuration: 30,
+      sessionsBeforeLongBreak: 4,
 
       playlist: [],
       currentTrackIndex: 0,
@@ -107,19 +128,95 @@ export const useAppStore = create<AppState>()(
 
       pushEnabled: false,
 
-      workLog: [],
+      workLog: [], // Legacy
 
-      setWorkDuration: (minutes) => set({ workDuration: minutes }),
-      setBreakDuration: (minutes) => set({ breakDuration: minutes }),
+      // Work Actions
+      setWorkStatus: (status) =>
+        set({ workStatus: status, lastStateChange: new Date().toISOString() }),
+      startWork: () => {
+        const now = new Date().toISOString();
+        const { workStatus, currentShift } = get();
+
+        // Return from break or start new shift?
+        if (workStatus === "break" && currentShift) {
+          // End the last break
+          const breaks = [...currentShift.breaks];
+          const lastBreak = breaks[breaks.length - 1];
+          if (lastBreak && !lastBreak.end) {
+            lastBreak.end = now;
+            // Update break in list
+            breaks[breaks.length - 1] = lastBreak;
+            set({
+              currentShift: { ...currentShift, breaks },
+              workStatus: "working",
+              lastStateChange: now,
+            });
+          } else {
+            set({ workStatus: "working", lastStateChange: now });
+          }
+        } else if (workStatus === "idle" || !currentShift) {
+          // New Shift
+          set({
+            workStatus: "working",
+            lastStateChange: now,
+            currentShift: {
+              id: crypto.randomUUID(),
+              start: now,
+              breaks: [],
+            },
+          });
+        }
+      },
+      startBreak: () => {
+        const now = new Date().toISOString();
+        const { currentShift } = get();
+
+        if (currentShift) {
+          set({
+            workStatus: "break",
+            lastStateChange: now,
+            currentShift: {
+              ...currentShift,
+              breaks: [...currentShift.breaks, { start: now }],
+            },
+          });
+        }
+      },
+      stopWork: () => {
+        const now = new Date().toISOString();
+        const { currentShift, shiftHistory } = get();
+
+        if (currentShift) {
+          const completedShift = { ...currentShift, end: now };
+          // If currently on break, close it
+          const lastBreak =
+            completedShift.breaks[completedShift.breaks.length - 1];
+          if (lastBreak && !lastBreak.end) {
+            lastBreak.end = now;
+          }
+
+          set({
+            workStatus: "idle",
+            lastStateChange: null,
+            currentShift: null,
+            shiftHistory: [completedShift, ...shiftHistory],
+            isMusicPlaying: false,
+          });
+        } else {
+          set({
+            workStatus: "idle",
+            lastStateChange: null,
+            isMusicPlaying: false,
+          });
+        }
+      },
+
+      setWorkCycleDuration: (minutes) => set({ workCycleDuration: minutes }),
+      setShortBreakDuration: (minutes) => set({ shortBreakDuration: minutes }),
       setLongBreakDuration: (minutes) => set({ longBreakDuration: minutes }),
       setSessionsBeforeLongBreak: (sessions) =>
         set({ sessionsBeforeLongBreak: sessions }),
-      setTimerState: (state) => set({ timerState: state }),
-      setTimeLeft: (seconds) => set({ timeLeft: seconds }),
-      setIsActive: (active) => set({ isActive: active }),
-      setCurrSession: (session) => set({ currSession: session }),
-      incrementSession: () =>
-        set((state) => ({ currSession: state.currSession + 1 })),
+
       addWorkLog: (durationMinutes, startedAt) =>
         set((state) => ({
           workLog: [
@@ -132,18 +229,37 @@ export const useAppStore = create<AppState>()(
           ],
         })),
 
-      addToPlaylist: (url, title) =>
+      // Playlist
+      addToPlaylist: async (url, title) => {
+        const { getYoutubeTitle } =
+          await import("@/src/app/actions/get-youtube-title"); // Dynamic import to avoid server-action issues if possible or just use the action
+
+        const finalTitle =
+          title?.trim() || `Track ${get().playlist.length + 1}`;
+        const isAuto = !title?.trim();
+
+        const id = crypto.randomUUID();
+
         set((state) => ({
           playlist: [
             ...state.playlist,
             {
-              id: crypto.randomUUID(),
+              id,
               url,
-              title: title?.trim() || `Track ${state.playlist.length + 1}`,
-              isAutoTitle: !title?.trim(), // Mark if it was auto-generated or empty
+              title: finalTitle,
+              isAutoTitle: isAuto,
             },
           ],
-        })),
+        }));
+
+        if (isAuto) {
+          getYoutubeTitle(url).then((fetchedTitle) => {
+            if (fetchedTitle) {
+              get().updateTrackTitle(id, fetchedTitle);
+            }
+          });
+        }
+      },
       updateTrackTitle: (id, title) =>
         set((state) => ({
           playlist: state.playlist.map((track) =>
@@ -172,6 +288,8 @@ export const useAppStore = create<AppState>()(
             currentTrackIndex: Math.max(0, nextIndex),
           };
         }),
+
+      // Music Player
       setProgress: (progress, duration) =>
         set({ currentTrackProgress: progress, currentTrackDuration: duration }),
       seekTo: (seconds) => set({ seekRequest: seconds }),
@@ -179,21 +297,62 @@ export const useAppStore = create<AppState>()(
 
       playMusic: () => set({ isMusicPlaying: true }),
       pauseMusic: () => set({ isMusicPlaying: false }),
+      toggleMusic: () =>
+        set((state) => ({ isMusicPlaying: !state.isMusicPlaying })),
+
       nextTrack: () =>
-        set((state) => ({
-          ...(state.playlist.length === 0
-            ? {}
-            : state.musicMode === "single"
-              ? { currentTrackIndex: state.currentTrackIndex }
-              : state.musicMode === "sequence"
-                ? state.currentTrackIndex + 1 < state.playlist.length
-                  ? { currentTrackIndex: state.currentTrackIndex + 1 }
-                  : { isMusicPlaying: false }
-                : {
-                    currentTrackIndex:
-                      (state.currentTrackIndex + 1) % state.playlist.length,
-                  }),
-        })),
+        set((state) => {
+          const count = state.playlist.length;
+          if (count === 0) return {};
+
+          let nextIndex = state.currentTrackIndex;
+
+          if (state.musicMode === "single") {
+            // Loop single track: index stays same
+            // But typically next button forces next track unless it's strictly single loop
+            // User asked "loop selected song", implies it stays on it if automatic.
+            // If USER clicks next, it should go next.
+            // But this nextTrack function is used by both Auto-finish and Manual Click?
+            // Usually manual click calls `setCurrentTrackIndex` or we differentiate.
+            // For now, let's assume `nextTrack` is triggered by "End of Song".
+            // Actually `GlobalMusicPlayer` calls `nextTrack` on end.
+
+            // However, for manual next, we usually want to go next even in single mode.
+            // Let's assume this is primarily "Next Logic".
+            // If manual, they should probably call `startTrack(index + 1)`.
+            return { seekRequest: 0 }; // Replay
+          } else if (
+            state.musicMode === "loop-playlist" ||
+            state.musicMode === "playlist"
+          ) {
+            nextIndex = (state.currentTrackIndex + 1) % count;
+            // If standard 'playlist' (not loop), and we hit end?
+            // Standard players usually stop at end of playlist unless loop all is on.
+            // But simplified: Playlist = Loop All usually for these apps.
+            // Or maybe 'playlist' = stop at end, 'loop-playlist' = cycle.
+            if (
+              state.musicMode === "playlist" &&
+              state.currentTrackIndex + 1 >= count
+            ) {
+              return { isMusicPlaying: false };
+            }
+            return { currentTrackIndex: (state.currentTrackIndex + 1) % count };
+          }
+
+          return { currentTrackIndex: (state.currentTrackIndex + 1) % count };
+        }),
+      previousTrack: () =>
+        set((state) => {
+          const count = state.playlist.length;
+          if (count === 0) return {};
+          // If > 3 sec, replay.
+          if (state.currentTrackProgress > 3) {
+            return { seekRequest: 0 };
+          }
+          const prevIndex = (state.currentTrackIndex - 1 + count) % count;
+          return { currentTrackIndex: prevIndex };
+        }),
+
       setCurrentTrackIndex: (index) =>
         set((state) => ({
           currentTrackIndex: Math.max(
@@ -201,8 +360,22 @@ export const useAppStore = create<AppState>()(
             Math.min(index, state.playlist.length - 1),
           ),
         })),
+
       setMusicMode: (mode) => set({ musicMode: mode }),
+      cycleMusicMode: () =>
+        set((state) => {
+          const modes: ("playlist" | "single" | "loop-playlist")[] = [
+            "playlist",
+            "loop-playlist",
+            "single",
+          ];
+          const current = modes.indexOf(state.musicMode);
+          const next = (current + 1) % modes.length;
+          return { musicMode: modes[next] };
+        }),
+
       setVolume: (vol) => set({ volume: vol }),
+
       togglePush: () => set((state) => ({ pushEnabled: !state.pushEnabled })),
     }),
     {

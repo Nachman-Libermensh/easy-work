@@ -17,7 +17,6 @@ import { NumberDisplay } from "../../number-display";
 import { BooleanDisplay } from "../../boolean-display";
 import { formatDate, formatTime, formatHebrewDate } from "@/src/lib/date-utils";
 import { flexRender } from "@tanstack/react-table";
-import { LookupDisplay } from "@/src/lib/lookups/lookup-display";
 
 type useCreateColumnsProps = {
   columns: ColumnConfig[];
@@ -69,19 +68,6 @@ const renderCellByType = (type: columnTypes, value: any, meta?: any) => {
   if (value === null || value === undefined) return "-";
 
   switch (type) {
-    case "lookup":
-      if (!meta?.lookupKey) {
-        console.warn("Lookup column missing lookupKey in meta");
-        return String(value);
-      }
-      return (
-        <LookupDisplay
-          lookup={meta.lookupKey}
-          value={value}
-          variant={meta.lookupVariant || "text"}
-          badgeVariant={meta.lookupBadgeVariant}
-        />
-      );
     case "date":
       return formatDate(value);
     case "datetime":

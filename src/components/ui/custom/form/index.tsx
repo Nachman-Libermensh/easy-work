@@ -56,9 +56,7 @@ const SelectField = lazy(() => import("./form-components/fields/select.field"));
 // const MultiSelectField = lazy(
 //   () => import("./form-components/fields/multi-select.field"),
 // );
-const SelectLookupField = lazy(
-  () => import("./form-components/fields/select-lookup.field"),
-);
+
 // const SelectMultiLookupField = lazy(
 //   () => import("./form-components/fields/select-multi-lookup.field")
 // );
@@ -100,7 +98,6 @@ export const { useAppForm, withForm } = createFormHook({
     FileInputField, // Add this line
     SwitchField,
     SelectField,
-    SelectLookupField,
     DatePickerField,
   },
 });

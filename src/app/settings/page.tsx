@@ -18,12 +18,12 @@ import { toast } from "sonner";
 
 export default function SettingsPage() {
   const {
-    workDuration,
-    breakDuration,
+    workCycleDuration,
+    shortBreakDuration,
     longBreakDuration,
     sessionsBeforeLongBreak,
-    setWorkDuration,
-    setBreakDuration,
+    setWorkCycleDuration,
+    setShortBreakDuration,
     setLongBreakDuration,
     setSessionsBeforeLongBreak,
     pushEnabled,
@@ -64,9 +64,7 @@ export default function SettingsPage() {
           <CardTitle className="flex items-center gap-2">
             <Timer className="h-5 w-5" /> תזמון עבודה
           </CardTitle>
-          <CardDescription>
-            התאמה אישית של מחזורי עבודה והפסקה
-          </CardDescription>
+          <CardDescription>התאמה אישית של מחזורי עבודה והפסקה</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -75,19 +73,19 @@ export default function SettingsPage() {
               <Input
                 id="work-duration"
                 type="number"
-                value={workDuration}
-                onChange={(e) => setWorkDuration(Number(e.target.value))}
+                value={workCycleDuration}
+                onChange={(e) => setWorkCycleDuration(Number(e.target.value))}
                 min={1}
                 max={120}
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="break-duration">משך הפסקה (בדקות)</Label>
+              <Label htmlFor="break-duration">משך הפסקה קצרה (בדקות)</Label>
               <Input
                 id="break-duration"
                 type="number"
-                value={breakDuration}
-                onChange={(e) => setBreakDuration(Number(e.target.value))}
+                value={shortBreakDuration}
+                onChange={(e) => setShortBreakDuration(Number(e.target.value))}
                 min={1}
                 max={60}
               />

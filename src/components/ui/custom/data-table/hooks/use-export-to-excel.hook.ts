@@ -2,42 +2,11 @@ import { Table } from "@tanstack/react-table";
 import XLSX from "xlsx-js-style";
 import { columnTypes } from "../data-table.types";
 import { formatHebrewDate, formatTime } from "@/src/lib/date-utils";
-import { lookupRegistry, LookupKey } from "@/src/lib/lookups";
 
-// Cache for lookup data to avoid multiple fetches
-const lookupCache = new Map<LookupKey, Map<string, string>>();
-
-const initializeLookupCache = async (lookupKey: LookupKey) => {
-  if (lookupCache.has(lookupKey)) {
-    return lookupCache.get(lookupKey)!;
-  }
-
-  const config = lookupRegistry[lookupKey];
-  const data = await config.queryFn();
-
-  const map = new Map<string, string>();
-  data.forEach((item) => {
-    const id = String(config.getId(item));
-    const label = config.getLabel(item);
-    map.set(id, label);
-  });
-
-  lookupCache.set(lookupKey, map);
-  return map;
-};
-
-const formatValueForExport = async (
-  value: any,
-  type?: columnTypes,
-  lookupKey?: LookupKey,
-) => {
+const formatValueForExport = async (value: any, type?: columnTypes) => {
   if (value === null || value === undefined) return "";
 
   switch (type) {
-    case "lookup":
-      if (!lookupKey) return String(value);
-      const lookupMap = await initializeLookupCache(lookupKey);
-      return lookupMap.get(String(value)) || String(value);
     case "date":
       return new Date(value).toLocaleDateString("he-IL");
     case "datetime":
@@ -94,20 +63,6 @@ export const useExportToExcel = <TData>(
     // Headers
     const headers = columns.map(getColumnTitle);
 
-    // Pre-initialize all lookup caches
-    const lookupColumns = columns.filter(
-      (col) => col.columnDef.meta?.type === "lookup",
-    );
-    await Promise.all(
-      lookupColumns.map((col) => {
-        const lookupKey = (col.columnDef.meta as any)?.lookupKey as
-          | LookupKey
-          | undefined;
-
-        return lookupKey ? initializeLookupCache(lookupKey) : Promise.resolve();
-      }),
-    );
-
     // Data - now async to handle lookups
     const data = await Promise.all(
       rows.map(async (row) => {
@@ -115,15 +70,8 @@ export const useExportToExcel = <TData>(
           columns.map(async (col) => {
             const value = row.getValue(col.id);
             const type = col.columnDef.meta?.type as columnTypes | undefined;
-            const lookupKey = (col.columnDef.meta as any)?.lookupKey as
-              | LookupKey
-              | undefined;
 
-            const formattedValue = await formatValueForExport(
-              value,
-              type,
-              lookupKey,
-            );
+            const formattedValue = await formatValueForExport(value, type);
 
             return {
               v: formattedValue,

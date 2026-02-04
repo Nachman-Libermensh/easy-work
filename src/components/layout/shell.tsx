@@ -23,7 +23,8 @@ export function Shell({ children }: ShellProps) {
   return (
     <SidebarProvider defaultOpen={true}>
       <AppSidebar navItems={navItems} />
-      <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 w-full h-screen overflow-hidden">
+      {/* Changed overflow-hidden to overflow-y-auto to allow scrolling */}
+      <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 w-full h-screen overflow-y-auto">
         {children}
       </main>
       <MusicFloatingControl />

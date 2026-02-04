@@ -30,8 +30,6 @@ import { Input } from "../../../input";
 import { useState, useMemo } from "react";
 import { columnTypes } from "../data-table.types";
 import { Checkbox } from "../../../checkbox";
-import { useLookup } from "@/src/lib/lookups/use-lookup";
-import { LookupKey } from "@/src/lib/lookups";
 
 interface DataTableColumnHeaderProps<
   TData,
@@ -50,14 +48,6 @@ export function DataTableColumnHeader<TData, TValue>({
 
   // Determine sorting labels based on type
   const type: columnTypes = column.columnDef.meta?.type || "text";
-  const lookupKey = (column.columnDef.meta as any)?.lookupKey as
-    | LookupKey
-    | undefined;
-
-  // Use lookup hook if this is a lookup column
-  const { getLabel: getLookupLabel, isLoading: isLookupLoading } = useLookup(
-    lookupKey || ("currencies" as LookupKey), // Fallback to prevent hook errors
-  );
 
   // Filter Logic helpers
   const uniqueValues = useMemo(() => {
@@ -112,9 +102,6 @@ export function DataTableColumnHeader<TData, TValue>({
 
   // Helper to get display value (with lookup support)
   const getDisplayValue = (value: string) => {
-    if (type === "lookup" && lookupKey && !isLookupLoading) {
-      return getLookupLabel(value) || value;
-    }
     return value;
   };
 

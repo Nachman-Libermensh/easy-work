@@ -3,6 +3,7 @@ import "./globals.css";
 import Providers from "@/src/components/providers";
 import { Toaster } from "../components/ui/sonner";
 import { Shell } from "../components/layout/shell";
+import { MusicCommandDialog } from "../components/layout/music-command-dialog";
 
 export const metadata: Metadata = {
   title: {
@@ -31,8 +32,9 @@ export default function RootLayout({
 
         <Providers>
           <Shell>{children}</Shell>
+          <MusicCommandDialog />
         </Providers>
-        <Toaster position="top-right" />
+        <Toaster position="bottom-right" />
       </body>
     </html>
   );

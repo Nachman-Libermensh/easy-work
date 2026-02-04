@@ -12,6 +12,8 @@ export function GlobalMusicPlayer() {
     volume,
     nextTrack,
     setProgress,
+    seekRequest,
+    clearSeekRequest,
   } = useAppStore();
 
   const [player, setPlayer] = useState<any>(null);
@@ -24,6 +26,18 @@ export function GlobalMusicPlayer() {
   const videoId = currentTrack?.url.includes("v=")
     ? currentTrack.url.split("v=")[1]?.split("&")[0]
     : currentTrack?.url.split("/").pop();
+
+  // טיפול בבקשות דילוג (Scrubbing)
+  useEffect(() => {
+    if (seekRequest !== null && player && isReady) {
+      try {
+        player.seekTo(seekRequest, true); // true = allowSeekAhead
+        clearSeekRequest();
+      } catch (e) {
+        console.error("Seek failed", e);
+      }
+    }
+  }, [seekRequest, player, isReady, clearSeekRequest]);
 
   // סנכרון מצב ניגון - רק כשהנגן באמת מוכן
   useEffect(() => {

@@ -1,4 +1,3 @@
-import { LookupKey } from "@/src/lib/lookups";
 import { type QueryStatus } from "@tanstack/react-query";
 import {
   Cell,
@@ -73,9 +72,6 @@ export type ColumnConfig = {
   classNameFn?: (value: Cell<any, any>) => string;
 };
 export type ColumnsMetaOptions = {
-  lookupKey?: LookupKey; // Added for lookup columns
-  lookupVariant?: "text" | "badge"; // How to display lookup values
-  lookupBadgeVariant?: "default" | "secondary" | "destructive" | "outline";
   sticky?: "right" | "left";
   type?: columnTypes;
   title?: string;
@@ -94,8 +90,6 @@ export type columnTypes =
   | "text"
   | "text-long"
   | "text-copy"
-  | "lookup"
-  | "lookup-multi"
   | "boolean"
   | "boolean-badge"
   | "boolean-icon"
