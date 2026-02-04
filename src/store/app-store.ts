@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage, StateStorage } from "zustand/middleware";
+import { get, set, del } from "idb-keyval";
 
 export interface PlaylistItem {
   id: string;
@@ -68,6 +69,19 @@ interface AppState {
   setVolume: (vol: number) => void;
   togglePush: () => void;
 }
+
+// Custom storage object using IndexedDB via idb-keyval
+const storage: StateStorage = {
+  getItem: async (name: string): Promise<string | null> => {
+    return (await get(name)) || null;
+  },
+  setItem: async (name: string, value: string): Promise<void> => {
+    await set(name, value);
+  },
+  removeItem: async (name: string): Promise<void> => {
+    await del(name);
+  },
+};
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -193,6 +207,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "app-storage",
+      storage: createJSONStorage(() => storage),
     },
   ),
 );
