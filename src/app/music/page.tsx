@@ -32,15 +32,22 @@ export default function MusicPage() {
   const [newUrl, setNewUrl] = useState("");
   const [newTitle, setNewTitle] = useState("");
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!newUrl) return;
     try {
-      // Simple validation or just add
+      // Simple validation
       new URL(newUrl);
-      addToPlaylist(newUrl, newTitle);
+
+      const finalTitle = newTitle.trim() || `Track ${playlist.length + 1}`;
+
+      // הוספה ל-store ללא ניסיון אוטומטי כושל
+      await addToPlaylist(newUrl, finalTitle);
+
       setNewUrl("");
       setNewTitle("");
-      toast.success("השיר נוסף לרשימה");
+      toast.success("השיר נוסף לרשימה", {
+        description: finalTitle,
+      });
     } catch {
       toast.error("כתובת לא תקינה");
     }

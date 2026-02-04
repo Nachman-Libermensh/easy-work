@@ -7,19 +7,25 @@ export async function getYoutubeTitle(url: string): Promise<string | null> {
       return null;
     }
 
+    // Using oEmbed API of YouTube to fetch video details in JSON format
     const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(
       url,
     )}&format=json`;
-    const response = await fetch(oembedUrl);
 
-    if (!response.ok) {
-      return null;
-    }
+    const res = await fetch(oembedUrl, {
+      method: "GET",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; EasyWork/1.0)",
+      },
+      next: { revalidate: 3600 }, // Cache results for 1 hour
+    });
 
-    const data = await response.json();
+    if (!res.ok) return null;
+
+    const data = await res.json();
     return data.title || null;
   } catch (error) {
-    console.error("Failed to fetch YouTube title", error);
+    console.error("Error fetching YouTube title:", error);
     return null;
   }
 }

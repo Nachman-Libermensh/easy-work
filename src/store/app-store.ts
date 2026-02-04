@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage, StateStorage } from "zustand/middleware";
 import { get, set, del } from "idb-keyval";
+import { toast } from "sonner";
 
 export interface BreakSession {
   start: string;
@@ -51,6 +52,9 @@ interface AppState {
   currentTrackDuration: number; // seconds
   seekRequest: number | null;
 
+  // Widget Position
+  musicWidgetPosition: { x: number; y: number };
+
   // Settings
   pushEnabled: boolean;
 
@@ -87,6 +91,7 @@ interface AppState {
   clearSeekRequest: () => void;
   setVolume: (vol: number) => void;
   setCurrentTrackIndex: (index: number) => void;
+  setMusicWidgetPosition: (pos: { x: number; y: number }) => void;
   togglePush: () => void;
 }
 
@@ -125,6 +130,8 @@ export const useAppStore = create<AppState>()(
       isMusicPlaying: false,
       musicMode: "playlist",
       volume: 0.5,
+
+      musicWidgetPosition: { x: 0, y: 0 },
 
       pushEnabled: false,
 
@@ -231,12 +238,12 @@ export const useAppStore = create<AppState>()(
 
       // Playlist
       addToPlaylist: async (url, title) => {
-        const { getYoutubeTitle } =
-          await import("@/src/app/actions/get-youtube-title"); // Dynamic import to avoid server-action issues if possible or just use the action
-
+        // Simplified: Just add the track with provided or default title
         const finalTitle =
           title?.trim() || `Track ${get().playlist.length + 1}`;
-        const isAuto = !title?.trim();
+
+        // Check if auto title logic was intended? We removed it per request.
+        const isAuto = false;
 
         const id = crypto.randomUUID();
 
@@ -251,14 +258,6 @@ export const useAppStore = create<AppState>()(
             },
           ],
         }));
-
-        if (isAuto) {
-          getYoutubeTitle(url).then((fetchedTitle) => {
-            if (fetchedTitle) {
-              get().updateTrackTitle(id, fetchedTitle);
-            }
-          });
-        }
       },
       updateTrackTitle: (id, title) =>
         set((state) => ({
@@ -373,6 +372,8 @@ export const useAppStore = create<AppState>()(
           const next = (current + 1) % modes.length;
           return { musicMode: modes[next] };
         }),
+
+      setMusicWidgetPosition: (pos) => set({ musicWidgetPosition: pos }),
 
       setVolume: (vol) => set({ volume: vol }),
 
