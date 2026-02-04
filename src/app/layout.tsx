@@ -6,10 +6,10 @@ import { Shell } from "../components/layout/shell";
 
 export const metadata: Metadata = {
   title: {
-    template: "%s | ברכת הנחל",
-    default: "ברכת הנחל",
+    template: "%s | Easy Work",
+    default: "Easy Work",
   },
-  description: "מערכת ניהול לתרומות ברכת הנחל",
+  description: "לוח עבודה חכם לניהול פוקוס, מוזיקה מרגיעה וסטטיסטיקות יעילות.",
 };
 
 export default function RootLayout({

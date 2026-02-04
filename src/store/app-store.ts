@@ -1,10 +1,18 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage, StateStorage } from "zustand/middleware";
+import { get, set, del } from "idb-keyval";
 
 export interface PlaylistItem {
   id: string;
   url: string;
   title: string;
+  isAutoTitle?: boolean;
+}
+
+export interface WorkLogEntry {
+  id: string;
+  startedAt: string;
+  durationMinutes: number;
 }
 
 interface AppState {
@@ -26,24 +34,54 @@ interface AppState {
   isMusicPlaying: boolean;
   musicMode: "playlist" | "single" | "sequence";
   volume: number;
+  currentTrackProgress: number; // seconds
+  currentTrackDuration: number; // seconds
+  seekRequest: number | null; // Timestamp to seek to. Null if no pending seek.
 
   // Settings
   pushEnabled: boolean;
 
+  // Stats
+  workLog: WorkLogEntry[];
+
   // Actions
   setWorkDuration: (minutes: number) => void;
   setBreakDuration: (minutes: number) => void;
+  setLongBreakDuration: (minutes: number) => void;
+  setSessionsBeforeLongBreak: (sessions: number) => void;
   setTimerState: (state: "idle" | "work" | "break" | "long-break") => void;
   setTimeLeft: (seconds: number) => void;
   setIsActive: (active: boolean) => void;
-  addToPlaylist: (url: string) => void;
+  setCurrSession: (session: number) => void;
+  incrementSession: () => void;
+  addWorkLog: (durationMinutes: number, startedAt?: string) => void;
+  addToPlaylist: (url: string, title?: string) => void;
+  updateTrackTitle: (id: string, title: string) => void; // Added
   removeFromPlaylist: (id: string) => void;
   playMusic: () => void;
   pauseMusic: () => void;
+  setProgress: (progress: number, duration: number) => void;
+  seekTo: (seconds: number) => void;
+  clearSeekRequest: () => void;
   nextTrack: () => void;
+  setCurrentTrackIndex: (index: number) => void;
+  setMusicMode: (mode: "playlist" | "single" | "sequence") => void;
   setVolume: (vol: number) => void;
   togglePush: () => void;
 }
+
+// Custom storage object using IndexedDB via idb-keyval
+const storage: StateStorage = {
+  getItem: async (name: string): Promise<string | null> => {
+    return (await get(name)) || null;
+  },
+  setItem: async (name: string, value: string): Promise<void> => {
+    await set(name, value);
+  },
+  removeItem: async (name: string): Promise<void> => {
+    await del(name);
+  },
+};
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -60,46 +98,116 @@ export const useAppStore = create<AppState>()(
 
       playlist: [],
       currentTrackIndex: 0,
+      currentTrackProgress: 0,
+      currentTrackDuration: 0,
+      seekRequest: null,
       isMusicPlaying: false,
       musicMode: "playlist",
       volume: 0.5,
 
       pushEnabled: false,
 
+      workLog: [],
+
       setWorkDuration: (minutes) => set({ workDuration: minutes }),
       setBreakDuration: (minutes) => set({ breakDuration: minutes }),
+      setLongBreakDuration: (minutes) => set({ longBreakDuration: minutes }),
+      setSessionsBeforeLongBreak: (sessions) =>
+        set({ sessionsBeforeLongBreak: sessions }),
       setTimerState: (state) => set({ timerState: state }),
       setTimeLeft: (seconds) => set({ timeLeft: seconds }),
       setIsActive: (active) => set({ isActive: active }),
+      setCurrSession: (session) => set({ currSession: session }),
+      incrementSession: () =>
+        set((state) => ({ currSession: state.currSession + 1 })),
+      addWorkLog: (durationMinutes, startedAt) =>
+        set((state) => ({
+          workLog: [
+            ...state.workLog,
+            {
+              id: crypto.randomUUID(),
+              startedAt: startedAt ?? new Date().toISOString(),
+              durationMinutes,
+            },
+          ],
+        })),
 
-      addToPlaylist: (url) =>
+      addToPlaylist: (url, title) =>
         set((state) => ({
           playlist: [
             ...state.playlist,
             {
               id: crypto.randomUUID(),
               url,
-              title: `Track ${state.playlist.length + 1}`,
+              title: title?.trim() || `Track ${state.playlist.length + 1}`,
+              isAutoTitle: !title?.trim(), // Mark if it was auto-generated or empty
             },
           ],
         })),
-      removeFromPlaylist: (id) =>
+      updateTrackTitle: (id, title) =>
         set((state) => ({
-          playlist: state.playlist.filter((p) => p.id !== id),
+          playlist: state.playlist.map((track) =>
+            track.id === id ? { ...track, title, isAutoTitle: false } : track,
+          ),
         })),
+      removeFromPlaylist: (id) =>
+        set((state) => {
+          const removeIndex = state.playlist.findIndex((p) => p.id === id);
+          const nextPlaylist = state.playlist.filter((p) => p.id !== id);
+          let nextIndex = state.currentTrackIndex;
+
+          if (removeIndex !== -1) {
+            if (removeIndex < state.currentTrackIndex) {
+              nextIndex -= 1;
+            } else if (
+              removeIndex === state.currentTrackIndex &&
+              nextIndex >= nextPlaylist.length
+            ) {
+              nextIndex = Math.max(0, nextPlaylist.length - 1);
+            }
+          }
+
+          return {
+            playlist: nextPlaylist,
+            currentTrackIndex: Math.max(0, nextIndex),
+          };
+        }),
+      setProgress: (progress, duration) =>
+        set({ currentTrackProgress: progress, currentTrackDuration: duration }),
+      seekTo: (seconds) => set({ seekRequest: seconds }),
+      clearSeekRequest: () => set({ seekRequest: null }),
 
       playMusic: () => set({ isMusicPlaying: true }),
       pauseMusic: () => set({ isMusicPlaying: false }),
       nextTrack: () =>
         set((state) => ({
-          currentTrackIndex:
-            (state.currentTrackIndex + 1) % state.playlist.length,
+          ...(state.playlist.length === 0
+            ? {}
+            : state.musicMode === "single"
+              ? { currentTrackIndex: state.currentTrackIndex }
+              : state.musicMode === "sequence"
+                ? state.currentTrackIndex + 1 < state.playlist.length
+                  ? { currentTrackIndex: state.currentTrackIndex + 1 }
+                  : { isMusicPlaying: false }
+                : {
+                    currentTrackIndex:
+                      (state.currentTrackIndex + 1) % state.playlist.length,
+                  }),
         })),
+      setCurrentTrackIndex: (index) =>
+        set((state) => ({
+          currentTrackIndex: Math.max(
+            0,
+            Math.min(index, state.playlist.length - 1),
+          ),
+        })),
+      setMusicMode: (mode) => set({ musicMode: mode }),
       setVolume: (vol) => set({ volume: vol }),
       togglePush: () => set((state) => ({ pushEnabled: !state.pushEnabled })),
     }),
     {
       name: "app-storage",
+      storage: createJSONStorage(() => storage),
     },
   ),
 );

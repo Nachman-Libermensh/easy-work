@@ -40,7 +40,7 @@ const buttonVariants = cva(
       variant: "default",
       size: "default",
     },
-  }
+  },
 );
 
 function Button({
@@ -69,7 +69,7 @@ function Button({
       data-size={size}
       className={cn(
         "cursor-pointer",
-        buttonVariants({ variant, size, className })
+        buttonVariants({ variant, size, className }),
       )}
       disabled={isLoading || disabled}
       {...props}
@@ -78,6 +78,24 @@ function Button({
       {children}
     </Comp>
   );
+
+  // Fix for Slot receiving multiple children (boolean false + element)
+  if (asChild) {
+    return (
+      <Slot
+        data-slot="button"
+        data-variant={variant}
+        data-size={size}
+        className={cn(
+          "cursor-pointer",
+          buttonVariants({ variant, size, className }),
+        )}
+        {...props}
+      >
+        {children}
+      </Slot>
+    );
+  }
 
   if (title && showTitleInTooltip) {
     return (

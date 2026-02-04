@@ -12,6 +12,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
 import { Trash2, Plus, Music, Play, Pause } from "lucide-react";
 import { toast } from "sonner";
 
@@ -24,19 +25,24 @@ export default function MusicPage() {
     pauseMusic,
     isMusicPlaying,
     currentTrackIndex,
+    setCurrentTrackIndex,
+    musicMode,
+    setMusicMode,
   } = useAppStore();
   const [newUrl, setNewUrl] = useState("");
+  const [newTitle, setNewTitle] = useState("");
 
   const handleAdd = () => {
     if (!newUrl) return;
     try {
       // Simple validation or just add
       new URL(newUrl);
-      addToPlaylist(newUrl);
+      addToPlaylist(newUrl, newTitle);
       setNewUrl("");
-      toast.success("Track added to playlist");
+      setNewTitle("");
+      toast.success("השיר נוסף לרשימה");
     } catch {
-      toast.error("Invalid URL");
+      toast.error("כתובת לא תקינה");
     }
   };
 
@@ -44,19 +50,21 @@ export default function MusicPage() {
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-2">
         <Music className="h-8 w-8 text-primary" />
-        <h1 className="text-3xl font-bold tracking-tight">Music Playlist</h1>
+        <h1 className="text-3xl font-bold tracking-tight">
+          מוזיקה מרגיעה לעבודה
+        </h1>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Add New Track</CardTitle>
+          <CardTitle>הוספת קישור יוטיוב</CardTitle>
           <CardDescription>
-            Enter a YouTube URL to add to your relaxation playlist
+            הוסיפו שיר בודד, רשימה או וידאו מיוטיוב להשמעה רציפה
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex gap-4">
+        <CardContent className="grid gap-4 sm:grid-cols-[2fr_1fr_auto] items-end">
           <div className="grid w-full items-center gap-1.5">
-            <Label htmlFor="url">YouTube URL</Label>
+            <Label htmlFor="url">קישור YouTube</Label>
             <Input
               id="url"
               placeholder="https://youtube.com/watch?v=..."
@@ -65,9 +73,49 @@ export default function MusicPage() {
               onKeyDown={(e) => e.key === "Enter" && handleAdd()}
             />
           </div>
+          <div className="grid w-full items-center gap-1.5">
+            <Label htmlFor="title">כותרת ידנית (אופציונלי)</Label>
+            <Input
+              id="title"
+              placeholder="למשל: Lo-Fi Focus"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+            />
+          </div>
           <Button className="mt-auto" onClick={handleAdd}>
-            <Plus className="mr-2 h-4 w-4" /> Add
+            <Plus className="mr-2 h-4 w-4" /> הוספה
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>אופן ניגון</CardTitle>
+          <CardDescription>
+            בחרו האם לנגן שיר בודד, רצף חד-פעמי או לופ של כל הרשימה
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <RadioGroup
+            value={musicMode}
+            onValueChange={(value) =>
+              setMusicMode(value as "playlist" | "single" | "sequence")
+            }
+            className="grid gap-3 sm:grid-cols-3"
+          >
+            <label className="flex items-center gap-3 rounded-lg border p-3">
+              <RadioGroupItem value="single" />
+              <span className="text-sm font-medium">שיר בודד בלופ</span>
+            </label>
+            <label className="flex items-center gap-3 rounded-lg border p-3">
+              <RadioGroupItem value="sequence" />
+              <span className="text-sm font-medium">רצף חד-פעמי</span>
+            </label>
+            <label className="flex items-center gap-3 rounded-lg border p-3">
+              <RadioGroupItem value="playlist" />
+              <span className="text-sm font-medium">פלייליסט בלופ</span>
+            </label>
+          </RadioGroup>
         </CardContent>
       </Card>
 
@@ -75,7 +123,11 @@ export default function MusicPage() {
         {playlist.map((track, index) => (
           <Card
             key={track.id}
-            className={`transition-all ${index === currentTrackIndex && isMusicPlaying ? "border-primary ring-1 ring-primary" : ""}`}
+            className={`transition-all ${
+              index === currentTrackIndex && isMusicPlaying
+                ? "border-primary ring-1 ring-primary"
+                : ""
+            }`}
           >
             <CardContent className="flex items-center justify-between p-4">
               <div className="flex items-center gap-4 overflow-hidden">
@@ -93,8 +145,30 @@ export default function MusicPage() {
                 <Button
                   variant="ghost"
                   size="icon"
+                  onClick={() => {
+                    const isCurrent = index === currentTrackIndex;
+                    setCurrentTrackIndex(index);
+                    if (isMusicPlaying && isCurrent) {
+                      pauseMusic();
+                    } else {
+                      playMusic();
+                    }
+                  }}
+                  className="text-muted-foreground hover:text-primary"
+                  aria-label="נגן או השהה"
+                >
+                  {isMusicPlaying && index === currentTrackIndex ? (
+                    <Pause className="h-4 w-4" />
+                  ) : (
+                    <Play className="h-4 w-4" />
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => removeFromPlaylist(track.id)}
                   className="text-muted-foreground hover:text-destructive"
+                  aria-label="הסר מהרשימה"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -106,7 +180,7 @@ export default function MusicPage() {
         {playlist.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
             <Music className="h-12 w-12 mx-auto mb-4 opacity-20" />
-            <p>No tracks in playlist yet.</p>
+            <p>עדיין אין שירים ברשימה.</p>
           </div>
         )}
       </div>

@@ -19,17 +19,10 @@ import { NavItem } from "@/src/config/navigation";
 import { Clock } from "lucide-react";
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
-  layoutMode: "top" | "side";
-  setLayoutMode: (mode: "top" | "side") => void;
   navItems: NavItem[];
 }
 
-export default function AppSidebar({
-  layoutMode,
-  setLayoutMode,
-  navItems,
-  ...props
-}: AppSidebarProps) {
+export default function AppSidebar({ navItems, ...props }: AppSidebarProps) {
   const pathname = usePathname();
 
   const renderIcon = (Icon: any, color?: string | null) => {
