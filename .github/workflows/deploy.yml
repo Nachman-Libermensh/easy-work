@@ -2,7 +2,6 @@ name: Deploy Next.js site to Pages
 
 on:
   push:
-    # וודא שזהו שם ה-Branch הנכון שלך (לפעמים זה main או master)
     branches: ["env/production"]
   workflow_dispatch:
 
@@ -22,22 +21,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # --- שלב חדש: התקנת pnpm ---
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8 # או הגרסה שאתה משתמש בה
+
       - name: Detect package manager
         id: detect-package-manager
         run: |
-          if [ -f "${{ github.workspace }}/yarn.lock" ]; then
+          if [ -f "${{ github.workspace }}/pnpm-lock.yaml" ]; then
+            echo "manager=pnpm" >> $GITHUB_OUTPUT
+            echo "command=install" >> $GITHUB_OUTPUT
+            echo "runner=pnpm" >> $GITHUB_OUTPUT
+            exit 0
+          elif [ -f "${{ github.workspace }}/yarn.lock" ]; then
             echo "manager=yarn" >> $GITHUB_OUTPUT
             echo "command=install" >> $GITHUB_OUTPUT
             echo "runner=yarn" >> $GITHUB_OUTPUT
             exit 0
-          elif [ -f "${{ github.workspace }}/package.json" ]; then
+          else
             echo "manager=npm" >> $GITHUB_OUTPUT
             echo "command=ci" >> $GITHUB_OUTPUT
             echo "runner=npx --no-install" >> $GITHUB_OUTPUT
             exit 0
-          else
-            echo "Unable to determine package manager"
-            exit 1
           fi
 
       - name: Setup Node
@@ -51,15 +58,6 @@ jobs:
         with:
           static_site_generator: next
 
-      - name: Restore cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            .next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}-
-
       - name: Install dependencies
         run: ${{ steps.detect-package-manager.outputs.manager }} ${{ steps.detect-package-manager.outputs.command }}
 
@@ -69,7 +67,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Next.js עם output: export מייצא לתיקיית out כברירת מחדל
           path: ./out
 
   deploy:
