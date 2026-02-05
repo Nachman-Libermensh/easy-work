@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage, StateStorage } from "zustand/middleware";
 import { get, set, del } from "idb-keyval";
-import { toast } from "sonner";
 
 export interface BreakSession {
   start: string;
@@ -46,7 +45,7 @@ interface AppState {
   playlist: PlaylistItem[];
   currentTrackIndex: number;
   isMusicPlaying: boolean;
-  musicMode: "playlist" | "single" | "loop-playlist"; // Changed 'sequence' to 'loop-playlist' for clarity
+  musicMode: "playlist" | "single" | "loop-playlist";
   volume: number;
   currentTrackProgress: number; // seconds
   currentTrackDuration: number; // seconds
@@ -75,7 +74,7 @@ interface AppState {
   setSessionsBeforeLongBreak: (sessions: number) => void;
 
   addWorkLog: (durationMinutes: number, startedAt?: string) => void;
-  addToPlaylist: (url: string, title?: string) => Promise<void>; // Make async to fetch title
+  addToPlaylist: (url: string, title?: string) => Promise<void>;
   updateTrackTitle: (id: string, title: string) => void;
   removeFromPlaylist: (id: string) => void;
 
@@ -87,7 +86,12 @@ interface AppState {
   previousTrack: () => void;
   setMusicMode: (mode: "playlist" | "single" | "loop-playlist") => void;
   cycleMusicMode: () => void;
+
+  // Updated/Added Music Setters
   setProgress: (progress: number, duration: number) => void;
+  setCurrentTrackProgress: (progress: number) => void; // Added
+  setCurrentTrackDuration: (duration: number) => void; // Added
+
   seekTo: (seconds: number) => void;
   clearSeekRequest: () => void;
   setVolume: (vol: number) => void;
@@ -241,13 +245,10 @@ export const useAppStore = create<AppState>()(
 
       // Playlist
       addToPlaylist: async (url, title) => {
-        // Simplified: Just add the track with provided or default title
         const finalTitle =
           title?.trim() || `Track ${get().playlist.length + 1}`;
 
-        // Check if auto title logic was intended? We removed it per request.
         const isAuto = false;
-
         const id = crypto.randomUUID();
 
         set((state) => ({
@@ -294,6 +295,15 @@ export const useAppStore = create<AppState>()(
       // Music Player
       setProgress: (progress, duration) =>
         set({ currentTrackProgress: progress, currentTrackDuration: duration }),
+
+      // --- New Actions Implementation ---
+      setCurrentTrackProgress: (progress) =>
+        set({ currentTrackProgress: progress }),
+
+      setCurrentTrackDuration: (duration) =>
+        set({ currentTrackDuration: duration }),
+      // ----------------------------------
+
       seekTo: (seconds) => set({ seekRequest: seconds }),
       clearSeekRequest: () => set({ seekRequest: null }),
 
@@ -310,28 +320,18 @@ export const useAppStore = create<AppState>()(
           let nextIndex = state.currentTrackIndex;
 
           if (state.musicMode === "single") {
-            // Loop single track: index stays same
-            // But typically next button forces next track unless it's strictly single loop
-            // User asked "loop selected song", implies it stays on it if automatic.
-            // If USER clicks next, it should go next.
-            // But this nextTrack function is used by both Auto-finish and Manual Click?
-            // Usually manual click calls `setCurrentTrackIndex` or we differentiate.
-            // For now, let's assume `nextTrack` is triggered by "End of Song".
-            // Actually `GlobalMusicPlayer` calls `nextTrack` on end.
-
-            // However, for manual next, we usually want to go next even in single mode.
-            // Let's assume this is primarily "Next Logic".
-            // If manual, they should probably call `startTrack(index + 1)`.
-            return { seekRequest: 0 }; // Replay
+            // במצב יחיד, אם הפונקציה נקראת אוטומטית בסוף שיר, נרצה לחזור להתחלה (Replay).
+            // אם המשתמש לוחץ ידנית, הקומפוננטה בדרך כלל תקרא ל-setCurrentTrackIndex.
+            // נניח כאן שזה לוגיקת "סוף שיר" או העברה כפויה.
+            // כרגע נשאיר Replay למצב יחיד כדי שיתנגן בלופ.
+            return { seekRequest: 0 };
           } else if (
             state.musicMode === "loop-playlist" ||
             state.musicMode === "playlist"
           ) {
             nextIndex = (state.currentTrackIndex + 1) % count;
-            // If standard 'playlist' (not loop), and we hit end?
-            // Standard players usually stop at end of playlist unless loop all is on.
-            // But simplified: Playlist = Loop All usually for these apps.
-            // Or maybe 'playlist' = stop at end, 'loop-playlist' = cycle.
+
+            // במצב פלייליסט רגיל (ללא לופ), אם הגענו לסוף - עוצרים.
             if (
               state.musicMode === "playlist" &&
               state.currentTrackIndex + 1 >= count

@@ -11,18 +11,20 @@ import {
   CommandSeparator,
 } from "@/src/components/ui/command";
 import { useAppStore } from "@/src/store/app-store";
-import { Music2, Play, Plus, Trash2 } from "lucide-react";
+import { Music2, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 export function MusicCommandDialog() {
   const [open, setOpen] = React.useState(false);
-  const {
-    playlist,
-    playMusic,
-    setCurrentTrackIndex,
-    addToPlaylist,
-    removeFromPlaylist,
-  } = useAppStore();
+  const [mounted, setMounted] = React.useState(false);
+
+  const { playlist, playMusic, setCurrentTrackIndex, addToPlaylist } =
+    useAppStore();
+
+  // מונע שגיאות Hydration
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -35,6 +37,8 @@ export function MusicCommandDialog() {
     document.addEventListener("keydown", down);
     return () => document.removeEventListener("keydown", down);
   }, []);
+
+  if (!mounted) return null;
 
   const handleSelect = (index: number) => {
     setCurrentTrackIndex(index);
@@ -62,16 +66,13 @@ export function MusicCommandDialog() {
       <CommandInput placeholder="חפש שיר בפלייליסט או לחץ Ctrl+V להוספה..." />
       <CommandList>
         <CommandEmpty>לא נמצאו שירים. נסה להדביק קישור מיוטיוב.</CommandEmpty>
-
         <CommandGroup heading="פעולות מהירות">
           <CommandItem onSelect={handlePaste}>
             <Plus className="mr-2 h-4 w-4" />
             הוסף שיר מהלוח (Youtube)
           </CommandItem>
         </CommandGroup>
-
         <CommandSeparator />
-
         <CommandGroup heading="פלייליסט נוכחי">
           {playlist.map((track, index) => (
             <CommandItem
