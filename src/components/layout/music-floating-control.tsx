@@ -147,6 +147,10 @@ export function MusicFloatingControl() {
     musicMode === "loop-playlist" || currentTrackIndex < playlist.length - 1;
   const hasPrev = musicMode === "loop-playlist" || currentTrackIndex > 0;
 
+  // Helpers for time display
+  const currentTime = isDraggingSlider ? localProgress : currentTrackProgress;
+  const remainingTime = Math.max((currentTrackDuration || 0) - currentTime, 0);
+
   return (
     <div
       ref={constraintsRef}
@@ -227,10 +231,10 @@ export function MusicFloatingControl() {
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
-                onClick={previousTrack}
-                disabled={!hasPrev}
+                onClick={nextTrack}
+                disabled={!hasNext}
               >
-                <SkipForward className="h-4 w-4 rotate-180" />
+                <SkipBack className="h-4 w-4 rotate-180" />
               </Button>
               <Button
                 size="icon"
@@ -247,10 +251,10 @@ export function MusicFloatingControl() {
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
-                onClick={nextTrack}
-                disabled={!hasNext}
+                onClick={previousTrack}
+                disabled={!hasPrev}
               >
-                <SkipBack className="h-4 w-4 rotate-180" />
+                <SkipForward className="h-4 w-4 rotate-180" />
               </Button>
             </div>
 
@@ -360,9 +364,11 @@ export function MusicFloatingControl() {
                       </Button>
                     </div>
                   )}
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {isMusicPlaying ? "מנגן.." : "מושהה"}
-                  </p>
+                  <div className="flex gap-2 text-xs text-muted-foreground mt-0.5">
+                    <span>{formatTime(currentTrackDuration)}</span>
+                    <span className="opacity-50">|</span>
+                    <p>{isMusicPlaying ? "מנגן.." : "מושהה"}</p>
+                  </div>
                 </div>
 
                 {/* Main Controls Row */}
@@ -371,10 +377,10 @@ export function MusicFloatingControl() {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
-                    onClick={previousTrack}
-                    disabled={!hasPrev}
+                    onClick={nextTrack}
+                    disabled={!hasNext}
                   >
-                    <SkipForward className="h-5 w-5 rotate-180" />
+                    <SkipBack className="h-5 w-5 rotate-180" />
                   </Button>
                   <Button
                     size="icon"
@@ -391,10 +397,10 @@ export function MusicFloatingControl() {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
-                    onClick={nextTrack}
-                    disabled={!hasNext}
+                    onClick={previousTrack}
+                    disabled={!hasPrev}
                   >
-                    <SkipBack className="h-5 w-5 rotate-180" />
+                    <SkipForward className="h-5 w-5 rotate-180" />
                   </Button>
                 </div>
               </div>
@@ -406,9 +412,7 @@ export function MusicFloatingControl() {
               onPointerDown={(e) => e.stopPropagation()}
             >
               <Slider
-                value={[
-                  isDraggingSlider ? localProgress : currentTrackProgress,
-                ]}
+                value={[currentTime]}
                 max={currentTrackDuration || 100}
                 step={1}
                 onValueChange={(vals) => {
@@ -423,11 +427,8 @@ export function MusicFloatingControl() {
               />
 
               <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
-                <span>
-                  {formatTime(
-                    isDraggingSlider ? localProgress : currentTrackProgress,
-                  )}
-                </span>
+                {/* Right side (Start): Time Remaining */}
+                <span>-{formatTime(remainingTime)}</span>
 
                 <div className="flex items-center gap-1">
                   <Button
@@ -467,7 +468,7 @@ export function MusicFloatingControl() {
                           max={1}
                           step={0.01}
                           onValueChange={(val) => setVolume(val[0])}
-                          className="h-full"
+                          className="data-[orientation=vertical]:min-h-24 data-[orientation=vertical]:h-24 cursor-pointer"
                         />
                       </motion.div>
                     )}
@@ -484,7 +485,8 @@ export function MusicFloatingControl() {
                   </div>
                 </div>
 
-                <span>{formatTime(currentTrackDuration)}</span>
+                {/* Left side (End): Time Elapsed */}
+                <span>{formatTime(currentTime)}</span>
               </div>
             </div>
           </div>
