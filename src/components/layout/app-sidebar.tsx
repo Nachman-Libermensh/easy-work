@@ -14,9 +14,11 @@ import {
   SidebarGroupLabel,
   SidebarGroupContent,
   SidebarRail,
+  SidebarFooter,
 } from "@/src/components/ui/sidebar";
 import { NavItem } from "@/src/config/navigation";
 import { Clock } from "lucide-react";
+import { AccessThemeSwitch } from "../ui/custom/access-theme-switch";
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   navItems: NavItem[];
@@ -75,6 +77,9 @@ export default function AppSidebar({ navItems, ...props }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter>
+        <AccessThemeSwitch />
+      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   );
