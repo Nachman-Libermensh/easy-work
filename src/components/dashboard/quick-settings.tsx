@@ -13,7 +13,8 @@ import { Button } from "@/src/components/ui/button";
 import { Settings } from "lucide-react";
 
 export function QuickSettings() {
-  const { workDuration, breakDuration, longBreakDuration } = useAppStore();
+  const { workCycleDuration, shortBreakDuration, longBreakDuration } =
+    useAppStore();
 
   return (
     <Card>
@@ -28,11 +29,11 @@ export function QuickSettings() {
       <CardContent className="space-y-3">
         <div className="flex items-center justify-between text-sm">
           <span>עבודה</span>
-          <span className="font-medium">{workDuration} דק׳</span>
+          <span className="font-medium">{workCycleDuration} דק׳</span>
         </div>
         <div className="flex items-center justify-between text-sm">
           <span>הפסקה קצרה</span>
-          <span className="font-medium">{breakDuration} דק׳</span>
+          <span className="font-medium">{shortBreakDuration} דק׳</span>
         </div>
         <div className="flex items-center justify-between text-sm">
           <span>הפסקה ארוכה</span>

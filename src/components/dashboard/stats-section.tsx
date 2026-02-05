@@ -22,7 +22,7 @@ const formatMinutes = (minutes: number) => {
 };
 
 export function StatsSection() {
-  const { workLog, isActive, timerState } = useAppStore();
+  const { workLog, workStatus } = useAppStore();
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -121,10 +121,14 @@ export function StatsSection() {
           <div className="rounded-lg border p-4 bg-card/50">
             <p className="text-sm text-muted-foreground">מצב מערכת</p>
             <p className="text-2xl font-semibold">
-              {isActive ? "בפוקוס" : "מוכן להתחלה"}
+              {workStatus === "working"
+                ? "בפוקוס"
+                : workStatus === "break"
+                  ? "בהפסקה"
+                  : "מוכן להתחלה"}
             </p>
             <p className="text-xs text-muted-foreground">
-              {timerState === "idle"
+              {workStatus === "idle"
                 ? "הגדירו את היום בלחיצה אחת"
                 : "ממשיכים למחזור הבא"}
             </p>

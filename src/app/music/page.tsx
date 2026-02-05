@@ -106,20 +106,22 @@ export default function MusicPage() {
           <RadioGroup
             value={musicMode}
             onValueChange={(value) =>
-              setMusicMode(value as "playlist" | "single" | "sequence")
+              setMusicMode(value as "playlist" | "single" | "loop-playlist")
             }
             className="grid gap-3 sm:grid-cols-3"
           >
-            <label className="flex items-center gap-3 rounded-lg border p-3">
+            <label className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
               <RadioGroupItem value="single" />
               <span className="text-sm font-medium">שיר בודד בלופ</span>
             </label>
-            <label className="flex items-center gap-3 rounded-lg border p-3">
-              <RadioGroupItem value="sequence" />
+            {/* "playlist" mode in store logic means play sequence once and stop */}
+            <label className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
+              <RadioGroupItem value="playlist" />
               <span className="text-sm font-medium">רצף חד-פעמי</span>
             </label>
-            <label className="flex items-center gap-3 rounded-lg border p-3">
-              <RadioGroupItem value="playlist" />
+            {/* "loop-playlist" mode in store logic means play sequence in loop */}
+            <label className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
+              <RadioGroupItem value="loop-playlist" />
               <span className="text-sm font-medium">פלייליסט בלופ</span>
             </label>
           </RadioGroup>
