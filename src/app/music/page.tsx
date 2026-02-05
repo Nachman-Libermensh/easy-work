@@ -228,6 +228,7 @@ export default function MusicPage() {
             </CardHeader>
             <CardContent>
               <RadioGroup
+                dir="rtl"
                 value={musicMode}
                 onValueChange={(value) =>
                   setMusicMode(value as "playlist" | "single" | "loop-playlist")
