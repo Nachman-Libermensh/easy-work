@@ -1,202 +1,381 @@
 "use client";
 
 import * as React from "react";
+import { useMemo } from "react";
 import {
-  Area,
-  AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
+  ReferenceLine,
   XAxis,
   YAxis,
-  ResponsiveContainer,
-  Tooltip,
-  BarChart,
-  Bar,
-  Legend,
+  Area,
+  AreaChart,
+  Cell,
 } from "recharts";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/src/components/ui/card";
 import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
 } from "@/src/components/ui/chart";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/src/components/ui/tabs";
 import { useAppStore } from "@/src/store/app-store";
-import { useMemo } from "react";
 
 export function StatsCharts() {
-  const { shiftHistory, workCycleDuration } = useAppStore();
+  const { shiftHistory, currentShift, workCycleDuration } = useAppStore();
   const [now, setNow] = React.useState(0);
 
   React.useEffect(() => {
     setNow(Date.now());
+
+    // Update 'now' every minute to keep active charts alive
+    const interval = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(interval);
   }, []);
 
-  const chartData = useMemo(() => {
-    if (now === 0) return [];
+  const allShifts = useMemo(() => {
+    // Combine history and current active shift
+    return currentShift ? [...shiftHistory, currentShift] : shiftHistory;
+  }, [shiftHistory, currentShift]);
 
-    // Group by Date
-    const grouped = shiftHistory.reduce(
-      (acc, shift) => {
-        const date = new Date(shift.start).toLocaleDateString("en-CA"); // YYYY-MM-DD
-        if (!acc[date]) {
-          acc[date] = { date, workMinutes: 0, breakMinutes: 0, violations: 0 };
-        }
+  // 1. Sessions Data (Daily/Session Level)
+  const sessionsData = useMemo(() => {
+    const safeNow = now;
 
+    return allShifts
+      .slice() // copy
+      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+      .filter((shift) => {
+        // Filter out very short invalid shifts (< 10 seconds)
+        const end = shift.end ? new Date(shift.end).getTime() : safeNow;
+        const duration = end - new Date(shift.start).getTime();
+        return duration > 10000;
+      })
+      .slice(-20) // Last 20 sessions
+      .map((shift) => {
         const start = new Date(shift.start).getTime();
-        const end = shift.end ? new Date(shift.end).getTime() : now; // active shift counts to now
-        const durationMins = (end - start) / 1000 / 60;
+        const end = shift.end ? new Date(shift.end).getTime() : safeNow;
+        const totalDurationMins = (end - start) / 1000 / 60;
 
         let breakMins = 0;
         shift.breaks.forEach((b) => {
           const bStart = new Date(b.start).getTime();
-          const bEnd = b.end ? new Date(b.end).getTime() : now;
+          const bEnd = b.end ? new Date(b.end).getTime() : safeNow;
           breakMins += (bEnd - bStart) / 1000 / 60;
         });
 
-        const netWork = durationMins - breakMins;
+        const netWorkMins = Math.max(0, totalDurationMins - breakMins);
+        const isCurrent = shift === currentShift;
 
-        // Calc violations (simple check per shift)
-        const expectedBreaks = Math.floor(netWork / workCycleDuration);
-        const actualBreaks = shift.breaks.length;
-        if (actualBreaks < expectedBreaks) {
-          acc[date].violations += 1;
+        return {
+          date: new Date(shift.start).toLocaleDateString("he-IL", {
+            day: "2-digit",
+            month: "2-digit",
+          }),
+          time: new Date(shift.start).toLocaleTimeString("he-IL", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          fullDate: new Date(shift.start).toLocaleString("he-IL"),
+          duration: parseFloat(netWorkMins.toFixed(2)),
+          goal: workCycleDuration,
+          status: netWorkMins >= workCycleDuration ? "success" : "short",
+          isCurrent,
+        };
+      });
+  }, [allShifts, now, workCycleDuration, currentShift]);
+
+  // 2. Monthly Data
+  const monthlyData = useMemo(() => {
+    const safeNow = now;
+
+    const grouped = allShifts.reduce(
+      (acc, shift) => {
+        const date = new Date(shift.start);
+        const key = `${date.getMonth() + 1}/${date.getFullYear()}`; // MM/YYYY
+
+        if (!acc[key]) {
+          acc[key] = { month: key, timestamp: date.getTime(), totalMinutes: 0 };
         }
 
-        acc[date].workMinutes += netWork;
-        acc[date].breakMinutes += breakMins;
+        const start = new Date(shift.start).getTime();
+        const end = shift.end ? new Date(shift.end).getTime() : safeNow;
+        const duration = (end - start) / 1000 / 60;
 
+        // Subtract breaks
+        let breaks = 0;
+        shift.breaks.forEach((b) => {
+          const bStart = new Date(b.start).getTime();
+          const bEnd = b.end ? new Date(b.end).getTime() : safeNow;
+          breaks += (bEnd - bStart) / 1000 / 60;
+        });
+
+        acc[key].totalMinutes += Math.max(0, duration - breaks);
         return acc;
       },
       {} as Record<
         string,
-        {
-          date: string;
-          workMinutes: number;
-          breakMinutes: number;
-          violations: number;
-        }
+        { month: string; timestamp: number; totalMinutes: number }
       >,
     );
 
-    // Convert to array and sort last 7-14 days
     return Object.values(grouped)
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      .slice(-14)
+      .sort((a, b) => a.timestamp - b.timestamp)
       .map((item) => ({
-        ...item,
-        formattedDate: new Date(item.date).toLocaleDateString("he-IL", {
+        month: item.month,
+        hours: parseFloat((item.totalMinutes / 60).toFixed(2)),
+      }));
+  }, [allShifts, now]);
+
+  // 3. Efficiency Data (Daily Trend)
+  const efficiencyData = useMemo(() => {
+    const safeNow = now;
+
+    const grouped = allShifts.reduce(
+      (acc, shift) => {
+        const dateStr = new Date(shift.start).toLocaleDateString("en-CA");
+        if (!acc[dateStr]) acc[dateStr] = { work: 0, total: 0 };
+
+        const start = new Date(shift.start).getTime();
+        const end = shift.end ? new Date(shift.end).getTime() : safeNow;
+        const duration = (end - start) / 1000 / 60;
+
+        let breaks = 0;
+        shift.breaks.forEach((b) => {
+          const bStart = new Date(b.start).getTime();
+          const bEnd = b.end ? new Date(b.end).getTime() : safeNow;
+          breaks += (bEnd - bStart) / 1000 / 60;
+        });
+
+        acc[dateStr].work += Math.max(0, duration - breaks);
+        acc[dateStr].total += duration;
+        return acc;
+      },
+      {} as Record<string, { work: number; total: number }>,
+    );
+
+    return Object.entries(grouped)
+      .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+      .slice(-14) // Last 14 days
+      .map(([date, stats]) => ({
+        date: new Date(date).toLocaleDateString("he-IL", {
           day: "2-digit",
           month: "2-digit",
         }),
-        hours: parseFloat((item.workMinutes / 60).toFixed(1)),
+        efficiency:
+          stats.total > 0 ? Math.round((stats.work / stats.total) * 100) : 0,
       }));
-  }, [shiftHistory, workCycleDuration, now]);
+  }, [allShifts, now]);
 
-  const chartConfig = {
-    workMinutes: {
-      label: "שעות עבודה",
-      color: "hsl(var(--chart-1))",
+  const hasData = sessionsData.length > 0;
+  const sessionsConfig = {
+    duration: {
+      label: "משך עבודה (דק׳)",
+      color: "var(--primary)",
     },
-    breakMinutes: {
-      label: "זמן הפסקה",
-      color: "hsl(var(--chart-2))",
-    },
-    violations: {
-      label: "חריגות מיעדים",
-      color: "hsl(var(--destructive))",
+    goal: {
+      label: "יעד (דק׳)",
+      color: "var(--muted-foreground)",
     },
   } satisfies ChartConfig;
 
-  return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle>משך עבודה יומי</CardTitle>
-          <CardDescription>
-            מעקב שעות עבודה נטו בשבועיים האחרונים
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
-            <AreaChart
-              data={chartData}
-              margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-            >
-              <defs>
-                <linearGradient id="fillWork" x1="0" y1="0" x2="0" y2="1">
-                  <stop
-                    offset="5%"
-                    stopColor="var(--color-workMinutes)"
-                    stopOpacity={0.8}
-                  />
-                  <stop
-                    offset="95%"
-                    stopColor="var(--color-workMinutes)"
-                    stopOpacity={0.1}
-                  />
-                </linearGradient>
-              </defs>
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey="formattedDate"
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-              />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(val) => `${val}h`}
-              />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <Area
-                dataKey="hours"
-                type="monotone"
-                fill="url(#fillWork)"
-                fillOpacity={0.4}
-                stroke="var(--color-workMinutes)"
-                strokeWidth={2}
-                name="work"
-              />
-            </AreaChart>
-          </ChartContainer>
-        </CardContent>
-      </Card>
+  const monthlyConfig = {
+    hours: {
+      label: "שעות עבודה",
+      color: "var(--chart-2)",
+    },
+  } satisfies ChartConfig;
 
-      <Card>
-        <CardHeader>
-          <CardTitle>עמידה ביעדים</CardTitle>
-          <CardDescription>מספר חריגות מהגדרות הפסקה</CardDescription>
+  const efficiencyConfig = {
+    efficiency: {
+      label: "יעילות (%)",
+      color: "var(--chart-3)",
+    },
+  } satisfies ChartConfig;
+
+  if (!hasData) {
+    return (
+      <Card className="col-span-full">
+        <CardHeader className="p-4 pb-0">
+          <CardTitle>ניתוח נתונים וסטטיסטיקה</CardTitle>
+          <CardDescription>אין מספיק נתונים להצגה כרגע</CardDescription>
         </CardHeader>
-        <CardContent>
-          <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
-            <BarChart data={chartData}>
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey="formattedDate"
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-              />
-              <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-              <Bar
-                dataKey="violations"
-                fill="var(--color-violations)"
-                radius={[4, 4, 0, 0]}
-                maxBarSize={50}
-              />
-            </BarChart>
-          </ChartContainer>
+        <CardContent className="p-8 flex flex-col items-center justify-center text-center text-muted-foreground gap-2">
+          <div className="text-4xl">📊</div>
+          <p>התחל לעבוד כדי לראות סטטיסטיקות על הביצועים שלך.</p>
         </CardContent>
       </Card>
-    </div>
+    );
+  }
+
+  return (
+    <Card className="col-span-full">
+      <CardHeader className="p-4 pb-0">
+        <div className="flex flex-col gap-2">
+          <CardTitle>ניתוח נתונים וסטטיסטיקה</CardTitle>
+          <CardDescription>סקירה מעמיקה של הרגלי העבודה שלך</CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent className="p-4">
+        <Tabs dir="rtl" defaultValue="sessions" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 mb-4">
+            <TabsTrigger value="sessions">רצף עבודה (סשנים)</TabsTrigger>
+            <TabsTrigger value="monthly">סיכום חודשי</TabsTrigger>
+            <TabsTrigger value="efficiency">מדד יעילות</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="sessions" className="space-y-4">
+            <div className="h-75 w-full" dir="ltr">
+              <ChartContainer config={sessionsConfig} className="h-full w-full">
+                <BarChart
+                  data={sessionsData}
+                  margin={{ top: 20, right: 0, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="time"
+                    tickLine={false}
+                    tickMargin={10}
+                    axisLine={false}
+                    interval={0}
+                    angle={-45}
+                    height={50}
+                    textAnchor="end"
+                  />
+                  <YAxis hide />
+                  <ChartTooltip
+                    content={<ChartTooltipContent indicator="dashed" />}
+                    cursor={{ fill: "transparent" }}
+                  />
+                  <ReferenceLine
+                    y={workCycleDuration}
+                    stroke="var(--destructive)"
+                    strokeDasharray="3 3"
+                    label={{
+                      position: "top",
+                      value: "יעד",
+                      fill: "var(--destructive)",
+                      fontSize: 12,
+                    }}
+                  />
+                  <Bar
+                    dataKey="duration"
+                    radius={[4, 4, 0, 0]}
+                    name="משך עבודה"
+                  >
+                    {sessionsData.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={
+                          entry.duration >= entry.goal
+                            ? "var(--primary)"
+                            : "var(--muted-foreground)"
+                        }
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ChartContainer>
+            </div>
+            <p className="text-center text-sm text-muted-foreground">
+              הגרף מציג את 20 הסשנים האחרונים ביחס ליעד המוגדר (
+              {workCycleDuration} דק׳)
+            </p>
+          </TabsContent>
+
+          <TabsContent value="monthly" className="space-y-4">
+            <div className="h-75 w-full" dir="ltr">
+              <ChartContainer config={monthlyConfig} className="h-full w-full">
+                <BarChart
+                  data={monthlyData}
+                  margin={{ top: 20, right: 0, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="month"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={10}
+                  />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar
+                    dataKey="hours"
+                    fill="var(--chart-2)"
+                    radius={[4, 4, 0, 0]}
+                    barSize={40}
+                  />
+                </BarChart>
+              </ChartContainer>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="efficiency" className="space-y-4">
+            <div className="h-75 w-full" dir="ltr">
+              <ChartContainer
+                config={efficiencyConfig}
+                className="h-full w-full"
+              >
+                <AreaChart
+                  data={efficiencyData}
+                  margin={{ top: 20, right: 0, left: 0, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient
+                      id="fillEfficiency"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="5%"
+                        stopColor="var(--chart-3)"
+                        stopOpacity={0.8}
+                      />
+                      <stop
+                        offset="95%"
+                        stopColor="var(--chart-3)"
+                        stopOpacity={0.1}
+                      />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="date"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={10}
+                  />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Area
+                    type="monotone"
+                    dataKey="efficiency"
+                    stroke="var(--chart-3)"
+                    fill="url(#fillEfficiency)"
+                    strokeWidth={3}
+                  />
+                </AreaChart>
+              </ChartContainer>
+            </div>
+            <p className="text-center text-sm text-muted-foreground">
+              אחוז הזמן שהוקדש לעבודה נטו מתוך זמן השהייה הכולל (כולל הפסקות)
+            </p>
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+    </Card>
   );
 }
