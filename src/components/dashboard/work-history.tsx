@@ -31,6 +31,8 @@ export function WorkHistory() {
 
   const historyData = useMemo(() => {
     return shiftHistory
+      .slice() // copy to avoid mutation
+      .filter((shift) => shift.end) // Only finished shifts for history
       .map((shift) => {
         const totalDuration = calculateDuration(shift.start, shift.end);
 
@@ -39,21 +41,15 @@ export function WorkHistory() {
           totalBreakTime += calculateDuration(b.start, b.end);
         });
 
-        const netWorkTime = totalDuration - totalBreakTime;
+        const netWorkTime = Math.max(0, totalDuration - totalBreakTime);
 
         // Compliance Logic
         // Goal: 1 break (shortBreakDuration) every (workCycleDuration).
         const expectedBreaks = Math.floor(netWorkTime / workCycleDuration);
         const actualBreaks = shift.breaks.length;
 
-        // Strict compliance: Did they take enough breaks?
-        // Let's be lenient: Work time / Break time ratio?
-        // User asked: "Did they meet the goal of 5 min break every hour".
-
+        // Slightly lenient compliance
         const isCompliant = actualBreaks >= expectedBreaks;
-        // Or if total break time is sufficient?
-        // Let's stick to "Count" or "Total Time".
-        // Simple heuristic:
 
         return {
           ...shift,

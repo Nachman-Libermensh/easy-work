@@ -238,7 +238,7 @@ export function StatsCharts() {
           </TabsList>
 
           <TabsContent value="sessions" className="space-y-4">
-            <div className="h-75 w-full" dir="ltr">
+            <div className="h-[300px] w-full" dir="ltr">
               <ChartContainer config={sessionsConfig} className="h-full w-full">
                 <BarChart
                   data={sessionsData}
@@ -246,18 +246,32 @@ export function StatsCharts() {
                 >
                   <CartesianGrid vertical={false} strokeDasharray="3 3" />
                   <XAxis
-                    dataKey="time"
+                    dataKey="fullDate"
                     tickLine={false}
                     tickMargin={10}
                     axisLine={false}
                     interval={0}
                     angle={-45}
-                    height={50}
+                    height={60}
                     textAnchor="end"
+                    tickFormatter={(value, index) =>
+                      sessionsData[index]?.time || ""
+                    }
                   />
                   <YAxis hide />
                   <ChartTooltip
-                    content={<ChartTooltipContent indicator="dashed" />}
+                    content={
+                      <ChartTooltipContent
+                        indicator="dashed"
+                        labelFormatter={(label, payload) => {
+                          if (payload && payload[0]) {
+                            const data = payload[0].payload;
+                            return `${data.fullDate} (${data.status === "success" ? "יעד הושג" : "מתחת ליעד"})`;
+                          }
+                          return label;
+                        }}
+                      />
+                    }
                     cursor={{ fill: "transparent" }}
                   />
                   <ReferenceLine
@@ -280,10 +294,13 @@ export function StatsCharts() {
                       <Cell
                         key={`cell-${index}`}
                         fill={
-                          entry.duration >= entry.goal
-                            ? "var(--primary)"
-                            : "var(--muted-foreground)"
+                          entry.isCurrent
+                            ? "var(--chart-4)" // Highlight current
+                            : entry.duration >= entry.goal
+                              ? "var(--primary)"
+                              : "var(--muted-foreground)"
                         }
+                        className={entry.isCurrent ? "animate-pulse" : ""}
                       />
                     ))}
                   </Bar>
@@ -291,8 +308,7 @@ export function StatsCharts() {
               </ChartContainer>
             </div>
             <p className="text-center text-sm text-muted-foreground">
-              הגרף מציג את 20 הסשנים האחרונים ביחס ליעד המוגדר (
-              {workCycleDuration} דק׳)
+              הגרף מציג את 20 הסשנים האחרונים. הסשן הנוכחי מודגש.
             </p>
           </TabsContent>
 

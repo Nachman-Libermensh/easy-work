@@ -48,8 +48,6 @@ export default function Home() {
       >
         <WorkHistory />
       </motion.div>
-
-      <NowPlaying />
     </div>
   );
 }
